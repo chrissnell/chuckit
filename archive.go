@@ -70,9 +70,9 @@ func createAndStreamArchive(remoteName string, endpoint string, bucket string, e
 
 	if remoteName == "" {
 		if len(encKey) == 0 {
-			remoteName = file.Name() + ".tar.aes.xz"
-		} else {
 			remoteName = file.Name() + ".tar.xz"
+		} else {
+			remoteName = file.Name() + ".tar.aes.xz"
 		}
 	}
 
