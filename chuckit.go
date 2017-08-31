@@ -3,26 +3,30 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"os"
+	"os/user"
 )
 
 func main() {
 
 	var useEncryption bool
-	// var remoteName string
-	// var endpoint string
-	// var encKey string
+	var key []byte
+	var err error
 
 	flag.Usage = printUsage
+
+	uid, err := user.Current()
+	if err != nil {
+		log.Fatalln(err)
+	}
 
 	bucket := flag.String("bucket", "", "Bucket name to upload to")
 	remoteName := flag.String("remote-name", "", "Remote name of file")
 	endpoint := flag.String("endpoint", "s3-us-west-2.amazonaws.com", "AWS S3 endpoint")
-	encKey := flag.String("enc-key", "", "Symmetric encryption key")
+	encRecipient := flag.String("enc-recipient", "", "Email address of recipient of symmetric key that is uploaded alongside archive")
+	keyringFile := flag.String("keyring-file", uid.HomeDir+"/.gnupg/pubring.gpg", "Path to GPG public keyring")
 
-	// flag.StringVar(&remoteName, "remote-name", "", "Remote name of file")
-	// flag.StringVar(&endpoint, "endpoint", "s3-us-west-2.amazonaws.com", "AWS S3 endpoint")
-	// flag.StringVar(&encKey, "enc-key", "", "Symmetric encryption key")
 	flag.Parse()
 
 	if *bucket == "" {
@@ -30,7 +34,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if *encKey != "" {
+	if *encRecipient != "" {
 		useEncryption = true
 	}
 
@@ -39,7 +43,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	createAndStreamArchive(*remoteName, *endpoint, *bucket, useEncryption, *encKey)
+	if useEncryption {
+		key, err = createAndStreamKey(*remoteName, *endpoint, *bucket, *encRecipient, *keyringFile)
+		if err != nil {
+			log.Fatalln(err)
+		}
+	}
+
+	createAndStreamArchive(*remoteName, *endpoint, *bucket, key)
 
 }
 
