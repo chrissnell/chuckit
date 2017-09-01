@@ -67,8 +67,8 @@ func createAndStreamKey(remoteName string, endpoint string, bucket string, recip
 	return key, nil
 }
 
-func createAndStreamArchive(remoteName string, endpoint string, bucket string, encKey string, debug *bool) {
-	var w io.WriteCloser
+func createAndStreamArchive(remoteName string, endpoint string, bucket string, encKey string, useCompression *bool, debug *bool) {
+	var s3w io.WriteCloser
 	var useEncryption bool
 
 	if encKey != "" {
@@ -83,32 +83,39 @@ func createAndStreamArchive(remoteName string, endpoint string, bucket string, e
 	}
 
 	if remoteName == "" {
-		if useEncryption {
-			remoteName = file.Name() + ".tar.aes.xz"
-		} else {
-			remoteName = file.Name() + ".tar.xz"
-		}
+		remoteName = file.Name() + ".tar"
+	} else {
+		remoteName = remoteName + ".tar"
+	}
+	if useEncryption {
+		remoteName = remoteName + ".aes"
+	}
+	if *useCompression {
+		remoteName = remoteName + ".xz"
 	}
 
 	if *debug {
-		w, err = os.OpenFile(remoteName, os.O_RDWR|os.O_CREATE, 0644)
+		s3w, err = os.OpenFile(remoteName, os.O_RDWR|os.O_CREATE, 0644)
 		if err != nil {
 			log.Fatalln(err)
 		}
 	} else {
-		w, err = newS3Writer(endpoint, bucket, remoteName)
+		s3w, err = newS3Writer(endpoint, bucket, remoteName)
 		if err != nil {
 			log.Fatalln(err)
 		}
 	}
 
-	xzw, err := xz.NewWriter(w)
-	if err != nil {
-		log.Fatalf("xz.NewWriter error %s", err)
-	}
-
 	var tw *tar.Writer
 	var pgpw io.WriteCloser
+	var xzw *xz.Writer
+
+	if *useCompression {
+		xzw, err = xz.NewWriter(s3w)
+		if err != nil {
+			log.Fatalf("xz.NewWriter error %s", err)
+		}
+	}
 
 	if useEncryption {
 
@@ -127,7 +134,11 @@ func createAndStreamArchive(remoteName string, endpoint string, bucket string, e
 		tw = tar.NewWriter(pgpw)
 
 	} else {
-		tw = tar.NewWriter(xzw)
+		if *useCompression {
+			tw = tar.NewWriter(xzw)
+		} else {
+			tw = tar.NewWriter(s3w)
+		}
 	}
 
 	addFilesToTarArchive(fileName, tw)
@@ -143,11 +154,13 @@ func createAndStreamArchive(remoteName string, endpoint string, bucket string, e
 		}
 	}
 
-	if err = xzw.Close(); err != nil {
-		log.Println("Error closing XZ writer", err)
+	if *useCompression {
+		if err = xzw.Close(); err != nil {
+			log.Println("Error closing XZ writer", err)
+		}
 	}
 
-	if err = w.Close(); err != nil {
+	if err = s3w.Close(); err != nil {
 		log.Fatalln(err)
 	}
 
