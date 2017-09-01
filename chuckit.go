@@ -11,7 +11,7 @@ import (
 func main() {
 
 	var useEncryption bool
-	var key []byte
+	var key string
 	var err error
 
 	flag.Usage = printUsage
@@ -21,6 +21,7 @@ func main() {
 		log.Fatalln(err)
 	}
 
+	debug := flag.Bool("debug", false, "Write files locally only(debug mode)")
 	bucket := flag.String("bucket", "", "Bucket name to upload to")
 	remoteName := flag.String("remote-name", "", "Remote name of file")
 	endpoint := flag.String("endpoint", "s3-us-west-2.amazonaws.com", "AWS S3 endpoint")
@@ -44,13 +45,13 @@ func main() {
 	}
 
 	if useEncryption {
-		key, err = createAndStreamKey(*remoteName, *endpoint, *bucket, *encRecipient, *keyringFile)
+		key, err = createAndStreamKey(*remoteName, *endpoint, *bucket, *encRecipient, *keyringFile, debug)
 		if err != nil {
 			log.Fatalln(err)
 		}
 	}
 
-	createAndStreamArchive(*remoteName, *endpoint, *bucket, key)
+	createAndStreamArchive(*remoteName, *endpoint, *bucket, key, debug)
 
 }
 

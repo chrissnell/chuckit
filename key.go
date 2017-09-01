@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -14,14 +15,16 @@ import (
 	"golang.org/x/crypto/openpgp/packet"
 )
 
-func generateKey() ([]byte, error) {
+func generateKey() (string, error) {
 	rand.Seed(time.Now().UTC().UnixNano())
-	key := make([]byte, 32)
+	k := make([]byte, 32)
 
-	_, err := rand.Read(key)
+	_, err := rand.Read(k)
+
+	key := hex.EncodeToString(k)
 
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	return key, nil
 

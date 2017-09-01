@@ -12,7 +12,9 @@ import (
 	"golang.org/x/crypto/openpgp/packet"
 )
 
-func createAndStreamKey(remoteName string, endpoint string, bucket string, recipient string, keyring string) ([]byte, error) {
+func createAndStreamKey(remoteName string, endpoint string, bucket string, recipient string, keyring string, debug *bool) (string, error) {
+
+	var w io.WriteCloser
 
 	fileName := os.Args[len(os.Args)-1]
 
@@ -29,24 +31,30 @@ func createAndStreamKey(remoteName string, endpoint string, bucket string, recip
 
 	key, err := generateKey()
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	ent, err := getRecipientEntity(recipient, keyring)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
-	encKey, err := encryptKey(key, ent)
+	encKey, err := encryptKey([]byte(key), ent)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
-	w, err := newS3Writer(endpoint, bucket, remoteName)
-	if err != nil {
-		log.Fatalln(err)
+	if *debug {
+		w, err = os.OpenFile(remoteName, os.O_RDWR|os.O_CREATE, 0644)
+		if err != nil {
+			return "", err
+		}
+	} else {
+		w, err = newS3Writer(endpoint, bucket, remoteName)
+		if err != nil {
+			log.Fatalln(err)
+		}
 	}
-
 	_, err = w.Write(encKey)
 	if err != nil {
 		log.Fatalln(err)
@@ -59,7 +67,13 @@ func createAndStreamKey(remoteName string, endpoint string, bucket string, recip
 	return key, nil
 }
 
-func createAndStreamArchive(remoteName string, endpoint string, bucket string, encKey []byte) {
+func createAndStreamArchive(remoteName string, endpoint string, bucket string, encKey string, debug *bool) {
+	var w io.WriteCloser
+	var useEncryption bool
+
+	if encKey != "" {
+		useEncryption = true
+	}
 
 	fileName := os.Args[len(os.Args)-1]
 
@@ -69,18 +83,23 @@ func createAndStreamArchive(remoteName string, endpoint string, bucket string, e
 	}
 
 	if remoteName == "" {
-		if len(encKey) == 0 {
-			remoteName = file.Name() + ".tar.xz"
-		} else {
+		if useEncryption {
 			remoteName = file.Name() + ".tar.aes.xz"
+		} else {
+			remoteName = file.Name() + ".tar.xz"
 		}
 	}
 
-	// Get a new PutWriter for upload
-	w, err := newS3Writer(endpoint, bucket, remoteName)
-	if err != nil {
-		log.Fatalln(err)
-
+	if *debug {
+		w, err = os.OpenFile(remoteName, os.O_RDWR|os.O_CREATE, 0644)
+		if err != nil {
+			log.Fatalln(err)
+		}
+	} else {
+		w, err = newS3Writer(endpoint, bucket, remoteName)
+		if err != nil {
+			log.Fatalln(err)
+		}
 	}
 
 	xzw, err := xz.NewWriter(w)
@@ -91,7 +110,7 @@ func createAndStreamArchive(remoteName string, endpoint string, bucket string, e
 	var tw *tar.Writer
 	var pgpw io.WriteCloser
 
-	if len(encKey) == 0 {
+	if useEncryption {
 
 		hints := &openpgp.FileHints{
 			IsBinary: false,
@@ -118,7 +137,7 @@ func createAndStreamArchive(remoteName string, endpoint string, bucket string, e
 		log.Fatalln(err)
 	}
 
-	if len(encKey) == 0 {
+	if useEncryption {
 		if err = pgpw.Close(); err != nil {
 			log.Fatalln(err)
 		}

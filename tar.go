@@ -10,18 +10,19 @@ import (
 	"strings"
 )
 
-func addFilesToTarArchive(path string, tw *tar.Writer) error {
-	info, err := os.Stat(path)
+func addFilesToTarArchive(source string, tw *tar.Writer) error {
+	info, err := os.Stat(source)
 	if err != nil {
-		return fmt.Errorf("Could not stat file %v: %v", path, err)
+		return fmt.Errorf("Could not stat file %v: %v", source, err)
 	}
 
 	var baseDir string
+
 	if info.IsDir() {
-		baseDir = filepath.Base(path)
+		baseDir = filepath.Base(source)
 	}
 
-	err = filepath.Walk(path,
+	err = filepath.Walk(source,
 		func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return fmt.Errorf("Error walking file/directory: %v", err)
@@ -33,7 +34,7 @@ func addFilesToTarArchive(path string, tw *tar.Writer) error {
 			}
 
 			if baseDir != "" {
-				header.Name = filepath.Join(baseDir, strings.TrimPrefix(path, path))
+				header.Name = filepath.Join(baseDir, strings.TrimPrefix(path, source))
 			}
 
 			if err = tw.WriteHeader(header); err != nil {
@@ -55,9 +56,10 @@ func addFilesToTarArchive(path string, tw *tar.Writer) error {
 			if err != nil {
 				return fmt.Errorf("Error copying %v to tar archive: %v", path, err)
 			}
-
 			return nil
 		})
+
+	tw.Flush()
 
 	return err
 }
