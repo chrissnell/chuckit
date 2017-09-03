@@ -30,7 +30,7 @@ func generateKey() (string, error) {
 
 }
 
-func getRecipientEntity(email string, keyring string) (*openpgp.Entity, error) {
+func getRecipientEntity(fingerprint string, keyring string) (*openpgp.Entity, error) {
 	keyringFileBuffer, err := os.Open(keyring)
 	if err != nil {
 		return nil, err
@@ -42,14 +42,11 @@ func getRecipientEntity(email string, keyring string) (*openpgp.Entity, error) {
 	}
 
 	for e := range entityList {
-		for id := range entityList[e].Identities {
-			if strings.Compare(entityList[e].Identities[id].UserId.Email, email) == 0 {
-				return entityList[e], nil
-			}
+		if strings.Compare(string(entityList[e].PrimaryKey.Fingerprint[:20]), fingerprint) == 0 {
+			return entityList[e], nil
 		}
-
 	}
-	return nil, fmt.Errorf("Could not find key for %v in GPG keyring", email)
+	return nil, fmt.Errorf("Could not find key for fingerprint %v in GPG keyring", fingerprint)
 }
 
 func encryptKey(key []byte, ent *openpgp.Entity) ([]byte, error) {
