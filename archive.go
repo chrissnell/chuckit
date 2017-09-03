@@ -12,7 +12,7 @@ import (
 	"golang.org/x/crypto/openpgp/packet"
 )
 
-func createAndStreamKey(remoteName string, endpoint string, bucket string, recipient string, keyring string, debug *bool) (string, error) {
+func createAndStreamKey(remoteName string, endpoint string, bucket string, recipient string, keyring string, localOnly *bool) (string, error) {
 
 	var w io.WriteCloser
 
@@ -44,7 +44,7 @@ func createAndStreamKey(remoteName string, endpoint string, bucket string, recip
 		return "", err
 	}
 
-	if *debug {
+	if *localOnly {
 		w, err = os.OpenFile(remoteName, os.O_RDWR|os.O_CREATE, 0644)
 		if err != nil {
 			return "", err
@@ -67,7 +67,7 @@ func createAndStreamKey(remoteName string, endpoint string, bucket string, recip
 	return key, nil
 }
 
-func createAndStreamArchive(remoteName string, endpoint string, bucket string, encKey string, useCompression *bool, debug *bool) {
+func createAndStreamArchive(remoteName string, endpoint string, bucket string, encKey string, useCompression *bool, localOnly *bool) {
 	var s3w io.WriteCloser
 	var useEncryption bool
 
@@ -94,7 +94,7 @@ func createAndStreamArchive(remoteName string, endpoint string, bucket string, e
 		remoteName = remoteName + ".xz"
 	}
 
-	if *debug {
+	if *localOnly {
 		s3w, err = os.OpenFile(remoteName, os.O_RDWR|os.O_CREATE, 0644)
 		if err != nil {
 			log.Fatalln(err)
@@ -115,6 +115,8 @@ func createAndStreamArchive(remoteName string, endpoint string, bucket string, e
 		if err != nil {
 			log.Fatalf("xz.NewWriter error %s", err)
 		}
+
+		tw = tar.NewWriter(xzw)
 	}
 
 	if useEncryption {
@@ -126,19 +128,17 @@ func createAndStreamArchive(remoteName string, endpoint string, bucket string, e
 			DefaultCompressionAlgo: 0,
 		}
 
-		pgpw, err = openpgp.SymmetricallyEncrypt(xzw, []byte(encKey), hints, config)
+		pgpw, err = openpgp.SymmetricallyEncrypt(s3w, []byte(encKey), hints, config)
 		if err != nil {
 			log.Fatalln("Could not start OpenPGP encryption:", err)
 		}
 
 		tw = tar.NewWriter(pgpw)
 
-	} else {
-		if *useCompression {
-			tw = tar.NewWriter(xzw)
-		} else {
-			tw = tar.NewWriter(s3w)
-		}
+	}
+
+	if !*useCompression && !useEncryption {
+		tw = tar.NewWriter(s3w)
 	}
 
 	addFilesToTarArchive(fileName, tw)
