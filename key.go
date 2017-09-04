@@ -46,7 +46,16 @@ func getRecipientEntity(fingerprint string, keyring string) (*openpgp.Entity, er
 			return entityList[e], nil
 		}
 	}
-	return nil, fmt.Errorf("Could not find key for fingerprint %v in GPG keyring", fingerprint)
+	log.Printf("Could not find key for fingerprint %v in GPG keyring", fingerprint)
+	log.Println("Available keys in keychain:")
+	for e := range entityList {
+		log.Println("Key:", hex.EncodeToString(entityList[e].PrimaryKey.Fingerprint[:20]))
+		for id := range entityList[e].Identities {
+			log.Println("   ID:", id)
+		}
+
+	}
+	return nil, fmt.Errorf("Key %v not found.", fingerprint)
 }
 
 func encryptKey(key []byte, ent *openpgp.Entity) ([]byte, error) {
