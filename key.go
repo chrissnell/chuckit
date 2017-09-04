@@ -42,7 +42,7 @@ func getRecipientEntity(fingerprint string, keyring string) (*openpgp.Entity, er
 	}
 
 	for e := range entityList {
-		if strings.Compare(string(entityList[e].PrimaryKey.Fingerprint[:20]), fingerprint) == 0 {
+		if strings.Compare(hex.EncodeToString(entityList[e].PrimaryKey.Fingerprint[:20]), strings.ToLower(fingerprint)) == 0 {
 			return entityList[e], nil
 		}
 	}
